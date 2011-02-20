@@ -1,0 +1,201 @@
+<!doctype html>
+<html> 
+<head> 
+<meta name="viewport" content="initial-scale=1.0, user-scalable=no" /> 
+<meta http-equiv="content-type" content="text/html; charset=UTF-8"/> 
+<title>NSW Suburbs: What's in a name?</title> 
+<script type="text/javascript" src="http://maps.google.com/maps/api/js?sensor=false"></script> 
+<script type="text/javascript">
+/**
+* Returns an XMLHttp instance to use for asynchronous
+* downloading. This method will never throw an exception, but will
+* return NULL if the browser does not support XmlHttp for any reason.
+* @return {XMLHttpRequest|Null}
+*/
+function createXmlHttpRequest() {
+ try {
+   if (typeof ActiveXObject != 'undefined') {
+     return new ActiveXObject('Microsoft.XMLHTTP');
+   } else if (window["XMLHttpRequest"]) {
+     return new XMLHttpRequest();
+   }
+ } catch (e) {
+   changeStatus(e);
+ }
+ return null;
+};
+
+/**
+* This functions wraps XMLHttpRequest open/send function.
+* It lets you specify a URL and will call the callback if
+* it gets a status code of 200.
+* @param {String} url The URL to retrieve
+* @param {Function} callback The function to call once retrieved.
+*/
+function downloadUrl(url, callback) {
+ var status = -1;
+ var request = createXmlHttpRequest();
+ if (!request) {
+   return false;
+ }
+
+ request.onreadystatechange = function() {
+   if (request.readyState == 4) {
+     try {
+       status = request.status;
+     } catch (e) {
+       // Usually indicates request timed out in FF.
+     }
+     if (status == 200) {
+       callback(request.responseText, request.status);
+       request.onreadystatechange = function() {};
+     }
+   }
+ }
+ request.open('GET', url, true);
+ try {
+   request.send(null);
+ } catch (e) {
+   changeStatus(e);
+ }
+};
+ 
+// Create our "tiny" marker icon
+var gYellowIcon = new google.maps.MarkerImage(
+ "http://labs.google.com/ridefinder/images/mm_20_yellow.png",
+ new google.maps.Size(12, 20),
+ new google.maps.Point(0, 0),
+ new google.maps.Point(6, 20));
+var selectedIcon = new google.maps.MarkerImage(
+ "http://labs.google.com/ridefinder/images/mm_20_green.png",
+ new google.maps.Size(12, 20),
+ new google.maps.Point(0, 0),
+ new google.maps.Point(6, 20));
+var gSmallShadow = new google.maps.MarkerImage(
+ "http://labs.google.com/ridefinder/images/mm_20_shadow.png",
+ new google.maps.Size(22, 20),
+ new google.maps.Point(0, 0),
+ new google.maps.Point(6, 20));
+
+var markers;
+var mapUK, mapAU;
+var sidebarDivs = [];
+
+function initialize() {
+  var height = (window.outerHeight - document.getElementById('top').offsetHeight - 150);
+  document.getElementById('mapUK').style.height = height + 'px';
+  document.getElementById('mapAU').style.height = height + 'px';
+  document.getElementById('sidebar').style.height = height + 'px';
+  
+  var myOptions = {
+    zoom: 13,
+    mapTypeId: google.maps.MapTypeId.ROADMAP
+  }
+  myOptions.center = new google.maps.LatLng(37.4419, -122.1419);
+  mapUK = new google.maps.Map(document.getElementById("mapUK"), myOptions);
+  var bounds = new google.maps.LatLngBounds(new google.maps.LatLng(49.58,-8.85), new google.maps.LatLng(57.49,4.09));
+  mapUK.fitBounds(bounds);
+  myOptions.center = new google.maps.LatLng(37.4419, -122.1419);
+  mapAU = new google.maps.Map(document.getElementById("mapAU"), myOptions);
+  var bounds = new google.maps.LatLngBounds(new google.maps.LatLng(-39.50, 140.27), new google.maps.LatLng(-28.96, 153.37));
+  mapAU.fitBounds(bounds);
+  
+  markers = [];
+  downloadUrl("/data.js", function(data) {
+    var matches = eval("(" + data + ")");
+    bounds_uk = new google.maps.LatLngBounds();
+    bounds_au = new google.maps.LatLngBounds();
+    for (var i = 0; i < matches.length; i++) {
+      makeMarkers(matches[i]);
+    }
+   });
+}
+
+function makeMarkers(match) {
+  var latlngUK = new google.maps.LatLng(match.townll.lat, (match.townll.lng));
+  var markerUK = new google.maps.Marker({position: latlngUK, map: mapUK, title: match.name, icon: gYellowIcon, shadow: gSmallShadow});
+  var infowindowUK = new google.maps.InfoWindow({content: match.name});
+  markerUK.infowindow = infowindowUK;
+  var latlngAU = new google.maps.LatLng(match.suburbll.lat, match.suburbll.lng);
+  var markerAU = new google.maps.Marker({position: latlngAU, map: mapAU, title: match.name, icon: gYellowIcon, shadow: gSmallShadow});
+  var infowindowAU = new google.maps.InfoWindow({content: match.name});
+  markerAU.infowindow = infowindowAU;
+  
+  markers.push(markerAU);
+  markers.push(markerUK);
+  google.maps.event.addListener(markerAU, "click", function() {
+    highlightMarker();
+    zoomToMarker();
+  });
+  google.maps.event.addListener(markerUK, "click", function() {
+    highlightMarker();
+    zoomToMarker();
+  });
+  var sidebarDiv = document.createElement('div');
+  sidebarDiv.innerHTML = match.name;
+  document.getElementById('sidebar').appendChild(sidebarDiv);
+  sidebarDivs.push(sidebarDiv);
+  
+  google.maps.event.addDomListener(sidebarDiv, 'mouseover', function() {
+    highlightMarker();
+  });
+  google.maps.event.addDomListener(sidebarDiv, 'click', function() {
+    zoomToMarker();
+  });
+  
+  function highlightMarker() {
+    for (var i = 0; i < markers.length; i++) {
+      markers[i].setIcon(gYellowIcon);
+      markers[i].infowindow.close();
+    }
+    for (var i = 0; i < sidebarDivs.length; i++) {
+      sidebarDivs[i].style.backgroundColor = 'white';
+    }
+    markerAU.setIcon(selectedIcon);
+    markerUK.setIcon(selectedIcon);
+    sidebarDiv.style.backgroundColor = '#00e516';
+  }
+  
+  function zoomToMarker() {
+    mapUK.setCenter(latlngUK);
+    mapAU.setCenter(latlngAU);
+    mapUK.setZoom(12);
+    mapAU.setZoom(12);
+    infowindowAU.open(mapAU, markerAU);
+    infowindowUK.open(mapUK, markerUK);
+  }
+}
+
+</script> 
+<style type="text/css">
+body {
+  font-family: Arial, sans-serif;  
+}
+
+#sidebar {
+  overflow-y: auto;
+  overflow-x: none;
+}
+#sidebar div {
+  cursor: pointer;
+}
+h1 {
+  background-color: #00e516;
+}
+.note {
+  font-size: smaller;
+}
+</style>
+</head> 
+<body onload="initialize()"> 
+  <div id="top">
+  <h1>NSW Suburbs: What's in a name?</h1>
+  <p>There are ~1600 suburbs in New South Wales. Of those, 227 share the same name as a town in the United Kingdom. And now you know why it's called "New South Wales". :)
+  </p>
+  <p class="note"><em>The NSW data is from the <a href="http://www.gnb.nsw.gov.au/name_search">Geographic Names Board</a> and the UK data is from <a href="http://freepages.genealogy.rootsweb.ancestry.com/~agene/locations/">this website</a>. There are some issues with the UK data coordinates, so not all positions are correct.</em></p>
+  </div>
+  <div id="sidebar" style="float:left; width: 28%; border: 3px solid black;"></div>
+  <div id="mapUK" style="float:left; width:35%; border:3px solid black;"></div> 
+  <div id="mapAU" style="float:left; width:35%;border:3px solid black;"></div> 
+</body> 
+</html>

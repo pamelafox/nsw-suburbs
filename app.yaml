@@ -1,0 +1,14 @@
+application: nsw-suburbs
+version: 1
+runtime: python
+api_version: 1
+
+handlers:
+  
+- url: /data\.js
+  mime_type: text/plain
+  static_files: data.js
+  upload: data.js
+
+- url: .*
+  script: parser.py
